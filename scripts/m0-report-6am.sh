@@ -7,7 +7,7 @@ echo "ZX-TG · 早间结果（$(date '+%m-%d %H:%M')）"
 echo
 
 echo "【零重力进程】"
-for u in zxtg-m0 zxtg-m1 zxtg-m2; do
+for u in zxtg-m0 zxtg-m1 zxtg-m1fix zxtg-m2 zxtg-m3 zxtg-m4 zxtg-m5 zxtg-m6; do
   s=$(systemctl --user is-active "$u" 2>/dev/null)
   [ -n "$s" ] && echo "  $u: $s"
 done
@@ -20,7 +20,7 @@ fi
 echo
 
 echo "【里程碑报告产出】"
-for f in M0-REPORT.md M1-REPORT.md M2-REPORT.md M3-REPORT.md; do
+for f in M0-REPORT.md M1-REPORT.md M2-REPORT.md M3-REPORT.md M4-REPORT.md M5-REPORT.md M6-REPORT.md; do
   [ -f "$f" ] && echo "  OK  $f ($(wc -l < "$f") 行)" || echo "  --  $f"
 done
 echo
@@ -56,7 +56,7 @@ echo
 
 echo "【最新报告摘要】"
 latest=""
-for f in M3-REPORT.md M2-REPORT.md M1-REPORT.md M0-REPORT.md; do
+for f in M6-REPORT.md M5-REPORT.md M4-REPORT.md M3-REPORT.md M2-REPORT.md M1-REPORT.md M0-REPORT.md; do
   [ -f "$f" ] && latest="$f" && break
 done
 if [ -n "$latest" ]; then
