@@ -92,7 +92,11 @@ class CallContext:
     async def config(self, key: str) -> Any:
         if self._plugin and key in self._plugin.config:
             return self._plugin.config[key]
-        raise NotImplementedError("config service is not implemented in M0")
+        from zxtg.core.services.config_service import config_service
+
+        group_id = self._group.id if self._group else None
+        plugin_key = self._plugin.key if self._plugin else None
+        return config_service.get(key, group_id=group_id, plugin_key=plugin_key)
 
     async def cache(self, key: str, ttl: int = 60) -> Any:
         raise NotImplementedError("cache service is not implemented in M0")

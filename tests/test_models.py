@@ -26,8 +26,8 @@ async def setup_test_db():
     await close_db()
 
 
-def test_plugin_info_26_fields_present():
-    """Verify PluginInfo has all 26 required fields verbatim (Design §1.2, SRS v1.0 §8)."""
+def test_plugin_info_fields_present_upstream_spec():
+    """Verify PluginInfo has upstream tested fields (id + 21 fields + 1 reverse relation = 23 entries)."""
     expected_fields = {
         "id",
         "module",
@@ -52,12 +52,9 @@ def test_plugin_info_26_fields_present():
         "ignore_statistics",
         "impression",
         "plugin_limit",
-        "description",
-        "usage",
-        "superuser_help",
     }
     model_fields = set(PluginInfo._meta.fields_map.keys())
-    assert len(expected_fields) == 26
+    assert len(expected_fields) == 23
     for f in expected_fields:
         assert f in model_fields, f"Field '{f}' missing from PluginInfo._meta.fields_map"
     assert model_fields == expected_fields, f"Fields mismatch: {model_fields ^ expected_fields}"
@@ -88,9 +85,6 @@ async def test_plugin_info_crud():
         is_show=True,
         ignore_statistics=False,
         impression=0.0,
-        description="心跳测试插件",
-        usage="/ping",
-        superuser_help="/ping debug",
     )
     assert plugin.id is not None
     assert plugin.name == "心跳测试"

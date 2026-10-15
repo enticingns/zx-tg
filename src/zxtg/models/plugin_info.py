@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class PluginInfo(Model):
-    """插件主表 (26 字段，字段名逐字继承自上游模型与契约)"""
+    """插件主表 (23 字段，字段名逐字继承自上游模型与契约)"""
 
     # 1. 主键自增 id
     id = fields.IntField(primary_key=True, generated=True, auto_increment=True)
@@ -59,12 +59,6 @@ class PluginInfo(Model):
     impression = fields.FloatField(default=0.0, description="插件好感度限制")
     # 23. 反向关联插件限制
     plugin_limit: fields.ReverseRelation["PluginLimit"]
-    # 24. 插件描述 (上游 PluginMetadata / PluginExtraData 字段)
-    description = fields.TextField(null=True, description="插件描述")
-    # 25. 插件使用说明 (上游 PluginMetadata / PluginExtraData 字段)
-    usage = fields.TextField(null=True, description="插件使用说明")
-    # 26. 超级用户帮助说明 (上游 PluginExtraData 字段)
-    superuser_help = fields.TextField(null=True, description="超级用户帮助")
 
     class Meta:
         table = "plugin_info"

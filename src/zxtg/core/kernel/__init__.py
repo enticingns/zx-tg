@@ -1,3 +1,7 @@
+from zxtg.core.kernel.commands import (
+    CommandRegistry,
+    command_registry,
+)
 from zxtg.core.kernel.enums import (
     BlockType,
     LimitCheckType,
@@ -19,17 +23,34 @@ from zxtg.core.kernel.guards import (
     ResolveContext,
     Verdict,
 )
+from zxtg.core.kernel.manifest import (
+    BotPerm,
+    Cmd,
+    ConfigSpec,
+    EventSpec,
+    Example,
+    LimitSpec,
+    Param,
+    PluginManifest,
+    TaskSpec,
+)
 from zxtg.core.kernel.pipeline import PIPELINE, Guard, GuardProtocol, run_pipeline
-from zxtg.core.kernel.registry import Cmd, PluginManifest, PluginRegistry, registry
+from zxtg.core.kernel.registry import PluginRegistry, registry
+from zxtg.core.kernel.scheduler import TaskScheduler, scheduler
 
 __all__ = [
     "ALLOW",
     "DENY",
     "PIPELINE",
     "BlockType",
+    "BotPerm",
     "BuildCommand",
     "Cmd",
+    "CommandRegistry",
+    "ConfigSpec",
     "Dispatch",
+    "EventSpec",
+    "Example",
     "Guard",
     "GuardBan",
     "GuardCost",
@@ -38,14 +59,20 @@ __all__ = [
     "GuardProtocol",
     "GuardSwitch",
     "LimitCheckType",
+    "LimitSpec",
     "LimitWatchType",
     "MergeConfig",
+    "Param",
     "PluginLimitType",
     "PluginManifest",
     "PluginRegistry",
     "PluginType",
     "ResolveContext",
+    "TaskScheduler",
+    "TaskSpec",
     "Verdict",
+    "command_registry",
     "registry",
     "run_pipeline",
+    "scheduler",
 ]
