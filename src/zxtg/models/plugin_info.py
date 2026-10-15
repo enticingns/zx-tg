@@ -12,7 +12,7 @@ class PluginInfo(Model):
     """插件主表 (26 字段，字段名逐字继承自上游模型与契约)"""
 
     # 1. 主键自增 id
-    id = fields.IntField(pk=True, generated=True, auto_increment=True)
+    id = fields.IntField(primary_key=True, generated=True, auto_increment=True)
     # 2. 模块名
     module = fields.CharField(max_length=255, description="模块名")
     # 3. 模块路径

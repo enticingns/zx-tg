@@ -52,6 +52,16 @@ class PluginRegistry:
         if handlers:
             for cmd_name, handler in handlers.items():
                 self._handlers[cmd_name.lower()] = handler
+                for cmd in manifest.cmds:
+                    if cmd.key.lower() == cmd_name.lower() or (
+                        cmd.slash and cmd.slash.lower() == cmd_name.lower()
+                    ):
+                        if cmd.pattern:
+                            self._handlers[cmd.pattern.lower()] = handler
+                        if cmd.slash:
+                            self._handlers[cmd.slash.lower()] = handler
+                        for alias in cmd.aliases:
+                            self._handlers[alias.lower()] = handler
 
     def register_handler(self, command_name: str, handler: HandlerFunc) -> None:
         self._handlers[command_name.lower()] = handler

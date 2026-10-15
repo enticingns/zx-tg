@@ -27,8 +27,8 @@ class Actor:
     """Event initiator (user / bot)."""
 
     id: str | int
-    full_name: str
     username: str | None = None
+    full_name: str = ""
     is_bot: bool = False
 
     @property

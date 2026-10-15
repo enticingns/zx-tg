@@ -7,7 +7,7 @@ from zxtg.core.kernel.enums import LimitCheckType, LimitWatchType, PluginLimitTy
 class PluginLimit(Model):
     """插件限制表 (继承自上游 plugin_limit 并补充显式周期 period 与 target_id)"""
 
-    id = fields.IntField(pk=True, generated=True, auto_increment=True)
+    id = fields.IntField(primary_key=True, generated=True, auto_increment=True)
     module = fields.CharField(max_length=255, description="模块名")
     module_path = fields.CharField(max_length=255, null=True, description="模块路径")
     plugin = fields.ForeignKeyField(

@@ -50,3 +50,20 @@ class LimitWatchType(StrEnum):
     USER = "USER"
     GROUP = "GROUP"
     ALL = "ALL"
+
+
+class RequestType(StrEnum):
+    """请求类型 (逐字继承上游 zhenxun/utils/enum.py)"""
+
+    FRIEND = "FRIEND"
+    GROUP = "GROUP"
+
+
+class RequestHandleType(StrEnum):
+    """请求处理类型 (逐字继承上游 zhenxun/utils/enum.py)"""
+
+    APPROVE = "APPROVE"
+    REFUSED = "REFUSED"
+    IGNORE = "IGNORE"
+    EXPIRE = "EXPIRE"
+
