@@ -1,0 +1,146 @@
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
+from typing import Any
+
+from zxtg.core.event import UnifiedEvent
+
+
+@dataclass(frozen=True)
+class UserView:
+    """Read-only view of a user's runtime state."""
+
+    id: str
+    level: int = 0
+    gold: int = 0
+    impression: float = 0.0
+
+
+@dataclass(frozen=True)
+class GroupView:
+    """Read-only view of a group's runtime state."""
+
+    id: str
+    title: str = ""
+    level: int = 0
+
+
+@dataclass(frozen=True)
+class PluginView:
+    """Read-only view of current plugin info and effective configuration."""
+
+    key: str
+    name: str = ""
+    config: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SentMessage:
+    """Sent message handle with message_id for potential editing or recall."""
+
+    message_id: int
+    content: Any = None
+
+
+class CallContext:
+    """Immutable call snapshot and plugin execution context (FR-AUTH-10, Design §5.12)."""
+
+    def __init__(
+        self,
+        event: UnifiedEvent,
+        user: UserView,
+        group: GroupView | None = None,
+        plugin: PluginView | None = None,
+        reply_fn: Callable[[Any], Coroutine[Any, Any, SentMessage]] | None = None,
+    ) -> None:
+        self._event = event
+        self._user = user
+        self._group = group
+        self._plugin = plugin
+        self._reply_fn = reply_fn
+        self._replies: list[SentMessage] = []
+
+    @property
+    def event(self) -> UnifiedEvent:
+        return self._event
+
+    @property
+    def user(self) -> UserView:
+        return self._user
+
+    @property
+    def group(self) -> GroupView | None:
+        return self._group
+
+    @property
+    def plugin(self) -> PluginView | None:
+        return self._plugin
+
+    @property
+    def replies(self) -> list[SentMessage]:
+        return list(self._replies)
+
+    def __repr__(self) -> str:
+        return (
+            f"CallContext(event={self._event!r}, "
+            f"user={self._user!r}, "
+            f"group={self._group!r}, "
+            f"plugin={self._plugin!r})"
+        )
+
+    # ---- Whitelisted Plugin API (Design §5.12) ----
+
+    async def config(self, key: str) -> Any:
+        if self._plugin and key in self._plugin.config:
+            return self._plugin.config[key]
+        raise NotImplementedError("config service is not implemented in M0")
+
+    async def cache(self, key: str, ttl: int = 60) -> Any:
+        raise NotImplementedError("cache service is not implemented in M0")
+
+    async def reply(self, content: Any) -> SentMessage:
+        if self._reply_fn:
+            sent = await self._reply_fn(content)
+        else:
+            msg_id = (self._event.message_id or 0) + len(self._replies) + 1
+            sent = SentMessage(message_id=msg_id, content=content)
+        self._replies.append(sent)
+        return sent
+
+    async def reply_image(self, template: str, data: dict[str, Any]) -> SentMessage:
+        raise NotImplementedError("reply_image is not implemented in M0")
+
+    async def edit(self, msg: SentMessage, content: Any) -> None:
+        raise NotImplementedError("edit is not implemented in M0")
+
+    async def recall(self, msg: SentMessage, delay: int = 0) -> bool:
+        raise NotImplementedError("recall is not implemented in M0")
+
+    async def keyboard(self, buttons: list[list[Any]]) -> None:
+        raise NotImplementedError("keyboard is not implemented in M0")
+
+    async def gold(self, delta: int, reason: str) -> bool:
+        raise NotImplementedError("gold service is not implemented in M0")
+
+    async def impression(self, delta: float) -> bool:
+        raise NotImplementedError("impression service is not implemented in M0")
+
+    async def db(self) -> Any:
+        raise NotImplementedError("db DAO is not implemented in M0")
+
+    async def mute(self, user_id: str, duration: int) -> bool:
+        raise NotImplementedError("mute action is not implemented in M0")
+
+    async def unmute(self, user_id: str) -> bool:
+        raise NotImplementedError("unmute action is not implemented in M0")
+
+    async def kick(self, user_id: str) -> bool:
+        raise NotImplementedError("kick action is not implemented in M0")
+
+    async def ban(self, user_id: str) -> bool:
+        raise NotImplementedError("ban action is not implemented in M0")
+
+    async def unban(self, user_id: str) -> bool:
+        raise NotImplementedError("unban action is not implemented in M0")
+
+    async def leave(self) -> bool:
+        raise NotImplementedError("leave action is not implemented in M0")

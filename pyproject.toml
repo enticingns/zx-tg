@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zxtg"
+version = "0.1.0"
+description = "ZX-TG: 绪山真寻 Telegram 版"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "ZX-TG Team" }
+]
+dependencies = [
+    "tortoise-orm",
+    "aiosqlite",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+lite = []
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[project.scripts]
+zxtg = "zxtg.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

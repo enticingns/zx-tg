@@ -7,11 +7,13 @@ echo "ZX-TG · M0 结果（$(date '+%m-%d %H:%M')）"
 echo
 
 echo "【零重力进程】"
+sys=$(systemctl --user is-active zxtg-m0 2>/dev/null)
+echo "  systemd unit zxtg-m0: ${sys:-unknown}"
 if pgrep -f "agy --model" >/dev/null 2>&1; then
   pid=$(pgrep -f "agy --model" | head -1)
   echo "  仍在运行 pid=$pid $(ps -o etime= -p "$pid" 2>/dev/null)"
 else
-  echo "  已结束"
+  echo "  agy 已结束"
 fi
 echo
 
