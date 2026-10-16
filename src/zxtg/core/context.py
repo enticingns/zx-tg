@@ -51,12 +51,14 @@ class CallContext:
         group: GroupView | None = None,
         plugin: PluginView | None = None,
         reply_fn: Callable[[Any], Coroutine[Any, Any, SentMessage]] | None = None,
+        action_fn: Callable[[str, dict[str, Any]], Coroutine[Any, Any, Any]] | None = None,
     ) -> None:
         self._event = event
         self._user = user
         self._group = group
         self._plugin = plugin
         self._reply_fn = reply_fn
+        self._action_fn = action_fn
         self._replies: list[SentMessage] = []
 
     @property
@@ -117,7 +119,10 @@ class CallContext:
         raise NotImplementedError("edit is not implemented in M0")
 
     async def recall(self, msg: SentMessage, delay: int = 0) -> bool:
-        raise NotImplementedError("recall is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("recall", {"message_id": msg.message_id, "is_bot_message": True})
+            return bool(res)
+        return False
 
     async def keyboard(self, buttons: list[list[Any]]) -> None:
         raise NotImplementedError("keyboard is not implemented in M0")
@@ -132,19 +137,37 @@ class CallContext:
         raise NotImplementedError("db DAO is not implemented in M0")
 
     async def mute(self, user_id: str, duration: int) -> bool:
-        raise NotImplementedError("mute action is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("mute", {"user_id": user_id, "duration": duration})
+            return bool(res)
+        return False
 
     async def unmute(self, user_id: str) -> bool:
-        raise NotImplementedError("unmute action is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("unmute", {"user_id": user_id})
+            return bool(res)
+        return False
 
     async def kick(self, user_id: str) -> bool:
-        raise NotImplementedError("kick action is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("kick", {"user_id": user_id})
+            return bool(res)
+        return False
 
     async def ban(self, user_id: str) -> bool:
-        raise NotImplementedError("ban action is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("ban", {"user_id": user_id})
+            return bool(res)
+        return False
 
     async def unban(self, user_id: str) -> bool:
-        raise NotImplementedError("unban action is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("unban", {"user_id": user_id})
+            return bool(res)
+        return False
 
     async def leave(self) -> bool:
-        raise NotImplementedError("leave action is not implemented in M0")
+        if self._action_fn:
+            res = await self._action_fn("leave", {})
+            return bool(res)
+        return False

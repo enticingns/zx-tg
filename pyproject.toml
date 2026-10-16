@@ -16,6 +16,7 @@ dependencies = [
     "tortoise-orm",
     "aiosqlite",
     "pydantic>=2.0",
+    "httpx",
 ]
 
 [project.optional-dependencies]

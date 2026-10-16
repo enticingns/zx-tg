@@ -128,6 +128,17 @@ class CommandRegistry:
                 self._degraded_commands.append(degraded)
 
         self._commands = updated_commands
+        self._by_key.clear()
+        self._by_slash.clear()
+        self._by_pattern.clear()
+        self._by_alias.clear()
+        for rc in self._commands:
+            self._by_key[rc.cmd.key.lower()] = rc
+            self._by_slash[rc.effective_slash] = rc
+            if rc.cmd.pattern:
+                self._by_pattern[rc.cmd.pattern.lower()] = rc
+            for alias in rc.cmd.aliases:
+                self._by_alias[alias.lower()] = rc
 
         if self._degraded_commands:
             names = [f"/{rc.effective_slash}({rc.cmd.key})" for rc in self._degraded_commands]
@@ -217,6 +228,51 @@ class CommandRegistry:
 
         return grouped
 
+    async def broadcast_commands(
+        self,
+        client: Any,
+        superusers: list[int | str] | None = None,
+        chat_members: list[tuple[int | str, int | str]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Broadcast scope-grouped commands to Telegram setMyCommands (FR-CMD-02, FR-CMD-04, FR-CMD-06)."""
+        self.recalculate_truncation()
+        grouped = self.get_scope_grouped_commands()
+        calls: list[dict[str, Any]] = []
+
+        # 1. all_group_chats scope
+        group_cmds = [{"command": e.command, "description": e.description} for e in grouped["default"]]
+        scope_group = {"type": "all_group_chats"}
+        await client.set_my_commands(commands=group_cmds, scope=scope_group)
+        calls.append({"scope": scope_group, "commands": group_cmds})
+
+        # 2. all_chat_administrators scope
+        admin_cmds = [{"command": e.command, "description": e.description} for e in grouped["all_chat_administrators"]]
+        scope_admin = {"type": "all_chat_administrators"}
+        await client.set_my_commands(commands=admin_cmds, scope=scope_admin)
+        calls.append({"scope": scope_admin, "commands": admin_cmds})
+
+        # 3. all_private_chats scope
+        private_cmds = [{"command": e.command, "description": e.description} for e in grouped["default"]]
+        scope_private = {"type": "all_private_chats"}
+        await client.set_my_commands(commands=private_cmds, scope=scope_private)
+        calls.append({"scope": scope_private, "commands": private_cmds})
+
+        # 4. chat_member / superuser scope
+        if chat_members and grouped.get("superuser"):
+            su_cmds = group_cmds + [{"command": e.command, "description": e.description} for e in grouped["superuser"]]
+            for cid, uid in chat_members:
+                scope_cm = {"type": "chat_member", "chat_id": cid, "user_id": uid}
+                await client.set_my_commands(commands=su_cmds, scope=scope_cm)
+                calls.append({"scope": scope_cm, "commands": su_cmds})
+        elif superusers and grouped.get("superuser"):
+            su_cmds = group_cmds + [{"command": e.command, "description": e.description} for e in grouped["superuser"]]
+            for su_id in superusers:
+                scope_su = {"type": "chat", "chat_id": su_id}
+                await client.set_my_commands(commands=su_cmds, scope=scope_su)
+                calls.append({"scope": scope_su, "commands": su_cmds})
+
+        return calls
+
     @property
     def degraded_commands(self) -> list[RegisteredCommand]:
         return list(self._degraded_commands)
@@ -235,3 +291,13 @@ class CommandRegistry:
 
 
 command_registry = CommandRegistry()
+
+
+async def broadcast_commands(
+    client: Any,
+    registry: CommandRegistry = command_registry,
+    superusers: list[int | str] | None = None,
+    chat_members: list[tuple[int | str, int | str]] | None = None,
+) -> list[dict[str, Any]]:
+    """Broadcast registered commands to Telegram via set_my_commands."""
+    return await registry.broadcast_commands(client, superusers=superusers, chat_members=chat_members)

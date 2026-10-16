@@ -29,6 +29,7 @@ def test_b3_boundary_kernel_and_services_no_platform_imports():
         "nonebot",
         "onebot",
         "zxtg.core.platform",
+        "httpx",
     )
 
     targets = [
@@ -60,6 +61,7 @@ def test_b1_boundary_plugins_no_platform_imports():
         "aiogram",
         "telethon",
         "pyrogram",
+        "httpx",
     )
 
     plugins_dir = PROJECT_ROOT / "plugins"
@@ -91,3 +93,52 @@ def test_b4_boundary_plugins_no_direct_orm_models():
                 assert not (imp == forbidden or imp.startswith(f"{forbidden}.")), (
                     f"Boundary B4 VIOLATION in {py_file}: direct ORM model import '{imp}'"
                 )
+
+
+def test_b2_boundary_platform_no_business_semantics():
+    """B2: core/platform/tg/ must NOT contain business semantic words (Design §2.2)."""
+    forbidden_words = (
+        "签到",
+        "金币",
+        "checkin",
+        "sign_in",
+        "coin",
+        "gold",
+        "impression",
+        "好感度",
+    )
+
+    tg_platform_dir = PROJECT_ROOT / "src" / "zxtg" / "core" / "platform" / "tg"
+    assert tg_platform_dir.exists(), f"Directory {tg_platform_dir} must exist"
+
+    import re
+
+    scanned_files = 0
+    for py_file in tg_platform_dir.rglob("*.py"):
+        scanned_files += 1
+        content = py_file.read_text(encoding="utf-8").lower()
+        for word in forbidden_words:
+            if re.match(r"^[a-z_]+$", word):
+                matched = bool(re.search(rf"\b{word}\b", content))
+            else:
+                matched = word in content
+            assert not matched, (
+                f"Boundary B2 VIOLATION in {py_file}: forbidden business word '{word}' found"
+            )
+
+    assert scanned_files > 0, "At least one tg platform file must be scanned"
+
+
+def test_httpx_restricted_to_platform_layer():
+    """httpx must ONLY be imported within core/platform/."""
+    src_dir = PROJECT_ROOT / "src" / "zxtg"
+    platform_dir = src_dir / "core" / "platform"
+
+    for py_file in src_dir.rglob("*.py"):
+        if py_file.is_relative_to(platform_dir):
+            continue
+        imports = get_all_imports(py_file)
+        for imp in imports:
+            assert imp != "httpx" and not imp.startswith("httpx."), (
+                f"httpx import VIOLATION in {py_file}: httpx is only allowed in platform layer"
+            )
