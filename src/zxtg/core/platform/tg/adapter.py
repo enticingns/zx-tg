@@ -407,6 +407,11 @@ class TgPlatformAdapter(PlatformAdapter):
                 return await self.unban(chat_id, kwargs["user_id"])
             case "leave":
                 return await self.leave(chat_id)
+            case "send_to":
+                target = kwargs.get("target") or chat_id
+                content = kwargs.get("content", "")
+                res = await self.send(target, content)
+                return bool(res)
             case "recall":
                 return await self.recall(
                     chat_id,

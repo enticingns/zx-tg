@@ -109,5 +109,21 @@ class UserService:
                 await user.save(update_fields=fields)
         return user
 
+    async def get_impression_ranking(
+        self, limit: int = 10, group_id: str | int | None = None
+    ) -> list[UserConsole]:
+        """Fetch users ranked by impression descending (FR-BIP-02)."""
+        if not Tortoise._inited:
+            raise RuntimeError("查询排行榜需要已初始化的数据库")
+        if group_id is not None:
+            gid = str(group_id)
+            from zxtg.models.logs import UserGoldLog
+            group_uids = await UserGoldLog.filter(reason__startswith=f"sign_in:{gid}").values_list("user_id", flat=True)
+            uids = list(set(group_uids))
+            if uids:
+                return await UserConsole.filter(user_id__in=uids).order_by("-impression").limit(limit)
+        return await UserConsole.all().order_by("-impression").limit(limit)
+
 
 user_service = UserService()
+

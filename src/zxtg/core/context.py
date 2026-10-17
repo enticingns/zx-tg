@@ -196,3 +196,10 @@ class CallContext:
             res = await self._action_fn("leave", {})
             return bool(res)
         return False
+
+    async def send_to(self, target: str | int, content: Any) -> bool:
+        if self._action_fn:
+            res = await self._action_fn("send_to", {"target": str(target), "content": content})
+            return bool(res)
+        return False
+

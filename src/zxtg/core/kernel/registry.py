@@ -411,6 +411,10 @@ class PluginRegistry:
             await self.register_manifest(manifest, handlers)
 
         command_registry.recalculate_truncation()
+        if Tortoise._inited:
+            from zxtg.core.services.config_service import config_service
+
+            await config_service.load_global()
         return resolved
 
 

@@ -43,6 +43,35 @@ class BaseDAO:
     async def record_stat(self, user_id: str | int, group_id: str | int | None = None, count: int = 1) -> None:
         statistics_service.record_call(self.plugin_key, user_id, group_id, count)
 
+    async def has_signed_in_today(self, user_id: str | int, today_date: Any = None) -> bool:
+        from tortoise import Tortoise
+        if not Tortoise._inited:
+            raise RuntimeError("检查签到状态需要已初始化的数据库")
+        import datetime
+        from zxtg.models.logs import UserGoldLog
+        target_date = today_date or datetime.datetime.now(datetime.timezone.utc).date()
+        logs = await UserGoldLog.filter(
+            user_id=str(user_id),
+            reason__startswith="sign_in",
+        ).order_by("-create_time").limit(20)
+        for log in logs:
+            if log.create_time.date() == target_date:
+                return True
+        return False
+
+    async def get_impression_ranking(
+        self, limit: int = 10, group_id: str | int | None = None
+    ) -> list[dict[str, Any]]:
+        users = await user_service.get_impression_ranking(limit=limit, group_id=group_id)
+        return [
+            {
+                "user_id": u.user_id,
+                "name": user_service.get_display_name(u.username, u.full_name, u.user_id),
+                "impression": u.impression,
+            }
+            for u in users
+        ]
+
 
 def get_plugin_dao(plugin_key: str = "") -> BaseDAO:
     """Factory function for retrieving a DAO instance for a plugin."""

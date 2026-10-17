@@ -1,3 +1,4 @@
+from zxtg.models.config import CoreConfig
 from zxtg.models.group_console import GroupConsole
 from zxtg.models.join_request import FGRequest, JoinRequest
 from zxtg.models.item import UserItem
@@ -11,6 +12,7 @@ from zxtg.models.task_record import TaskRecord
 from zxtg.models.user_console import UserConsole
 
 __all__ = [
+    "CoreConfig",
     "FGRequest",
     "GroupConsole",
     "GroupPluginSwitch",

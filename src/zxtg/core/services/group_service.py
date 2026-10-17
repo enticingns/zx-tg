@@ -119,5 +119,35 @@ class GroupService:
             await sw.save(update_fields=["status", "updated_at"])
         return sw
 
+    async def get_global_plugin_switch(self, plugin_key: str) -> bool:
+        """Get global plugin status from PluginInfo."""
+        if not Tortoise._inited:
+            raise RuntimeError("获取全局插件开关需要已初始化的数据库")
+        info = await PluginInfo.get_or_none(module=plugin_key)
+        if info:
+            return info.status
+        from zxtg.core.kernel.registry import registry
+        p = registry.get_plugin(plugin_key)
+        return p.default_status if p else True
+
+    async def set_global_plugin_switch(self, plugin_key: str, status: bool) -> bool:
+        """Set global plugin status in PluginInfo."""
+        if not Tortoise._inited:
+            raise RuntimeError("设置全局插件开关需要已初始化的数据库")
+        info = await PluginInfo.get_or_none(module=plugin_key)
+        if info:
+            info.status = status
+            await info.save(update_fields=["status"])
+            return True
+        return False
+
+    async def get_active_group_ids(self) -> list[str]:
+        """Fetch all active group IDs."""
+        if not Tortoise._inited:
+            raise RuntimeError("获取群列表需要已初始化的数据库")
+        groups = await GroupConsole.filter(status=True).all()
+        return [g.group_id for g in groups]
+
 
 group_service = GroupService()
+

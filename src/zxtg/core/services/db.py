@@ -38,6 +38,12 @@ async def init_db(db_path: str | None = None, generate_schemas: bool = True) -> 
     if generate_schemas:
         logger.debug("Generating database schemas...")
         await Tortoise.generate_schemas()
+
+    # Read persisted global configurations back into config_service (FR-CFG-01, NEXT-TASK-M4FIX §1)
+    from zxtg.core.services.config_service import config_service
+
+    await config_service.load_global()
+
     logger.info("Database initialized successfully")
 
 
@@ -45,6 +51,9 @@ async def close_db() -> None:
     """Close active database connections gracefully (FR-CORE-06)."""
     logger.info("Closing database connections...")
     await Tortoise.close_connections()
+    from zxtg.core.services.config_service import config_service
+
+    config_service._global_configs.clear()
     logger.info("Database connections closed")
 
 

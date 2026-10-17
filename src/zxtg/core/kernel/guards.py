@@ -149,6 +149,16 @@ async def GuardSwitch(ctx: CallContext) -> Verdict:
     if ctx.user.level >= 100 and not manifest.limit_superuser:
         return ALLOW
 
+    # In a group, group-level switch overrides global-level (FR-AUTH-07)
+    if Tortoise._inited and ctx.group:
+        from zxtg.core.services.group_service import group_service
+
+        sw = await group_service.get_plugin_switch(ctx.group.id, plugin_key)
+        if sw is not None:
+            if sw is False:
+                return DENY(reason="插件已在群内关闭", tip=f"发送 /enable {plugin_key} 开启")
+            return ALLOW
+
     is_globally_enabled = True
     if Tortoise._inited:
         info = await PluginInfo.get_or_none(module=plugin_key)
@@ -159,14 +169,8 @@ async def GuardSwitch(ctx: CallContext) -> Verdict:
     if not is_globally_enabled:
         return DENY(reason="插件已全局关闭", tip=f"发送 /enable {plugin_key} 开启")
 
-    if Tortoise._inited and ctx.group:
-        from zxtg.core.services.group_service import group_service
-
-        sw = await group_service.get_plugin_switch(ctx.group.id, plugin_key)
-        if sw is False:
-            return DENY(reason="插件已在群内关闭", tip=f"发送 /enable {plugin_key} 开启")
-
     return ALLOW
+
 
 
 async def GuardLevel(ctx: CallContext) -> Verdict:

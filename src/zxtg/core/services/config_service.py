@@ -133,6 +133,68 @@ class ConfigService:
             value = self.validate_value(spec, value)
         self._global_configs[key] = value
 
+    async def save_global(self, key: str, value: Any, plugin_key: str | None = None) -> None:
+        """Set and persist a global-level configuration value to database (FR-CFG-01, Design §5.6)."""
+        if not CONFIG_KEY_REGEX.match(key):
+            raise ValueError(f"Config key {key!r} violates regex ^[A-Z][A-Z0-9_]{{1,63}}$")
+        spec = self.get_spec(key, plugin_key)
+        if spec:
+            value = self.validate_value(spec, value)
+            if plugin_key is None:
+                for (p, k), s in self._specs.items():
+                    if k == key and s == spec:
+                        plugin_key = p
+                        break
+
+        value_json = json.dumps(value, ensure_ascii=False)
+        scope = spec.scope if spec and spec.scope else "global"
+
+        from tortoise import Tortoise
+
+        if not Tortoise._inited:
+            raise RuntimeError("Database not initialized, cannot persist global config")
+
+        from zxtg.models.config import CoreConfig
+
+        record = await CoreConfig.filter(key=key).first()
+        if record:
+            record.value_json = value_json
+            if plugin_key:
+                record.plugin_key = plugin_key
+            record.scope = scope
+            await record.save(update_fields=["value_json", "plugin_key", "scope", "updated_at"])
+        else:
+            await CoreConfig.create(
+                key=key,
+                value_json=value_json,
+                plugin_key=plugin_key,
+                scope=scope,
+            )
+
+        self._global_configs[key] = value
+
+    async def load_global(self, key: str | None = None) -> Any:
+        """Load persisted global configs from DB into memory (FR-CFG-01)."""
+        from tortoise import Tortoise
+
+        if not Tortoise._inited:
+            raise RuntimeError("Database not initialized, cannot load global config")
+
+        from zxtg.models.config import CoreConfig
+
+        if key is not None:
+            record = await CoreConfig.filter(key=key).first()
+            if record:
+                val = json.loads(record.value_json)
+                self._global_configs[key] = val
+                return val
+            return None
+
+        records = await CoreConfig.all()
+        for record in records:
+            self._global_configs[record.key] = json.loads(record.value_json)
+        return self._global_configs
+
     def set_group(self, group_id: str, key: str, value: Any, plugin_key: str | None = None) -> None:
         """Set a group-level configuration value with validation and scope checking."""
         if not CONFIG_KEY_REGEX.match(key):
