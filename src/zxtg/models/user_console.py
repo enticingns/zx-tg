@@ -11,6 +11,7 @@ class UserConsole(Model):
     full_name = fields.CharField(max_length=255, default="", description="用户全名")
     gold = fields.IntField(default=100, description="金币数量")
     impression = fields.FloatField(default=0.0, description="好感度")
+    level = fields.IntField(default=0, description="用户权限等级")
     platform = fields.CharField(max_length=255, default="telegram", description="所属平台")
     create_time = fields.DatetimeField(auto_now_add=True, description="创建时间")
     updated_at = fields.DatetimeField(auto_now=True, description="更新时间")

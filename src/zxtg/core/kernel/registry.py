@@ -27,9 +27,6 @@ from zxtg.core.kernel.manifest import (
     parse_semver,
     validate_callback_data,
 )
-from zxtg.core.services.config_service import config_service
-from zxtg.core.services.limit_service import limit_service
-from zxtg.models.plugin_info import PluginInfo
 
 logger = logging.getLogger("zxtg.kernel.registry")
 
@@ -53,6 +50,8 @@ class PluginRegistry:
         self._handlers.clear()
         self._discovered_modules.clear()
         command_registry.clear()
+        from zxtg.core.services.config_service import config_service
+        from zxtg.core.services.limit_service import limit_service
         config_service.clear()
         limit_service.clear()
 
@@ -267,6 +266,8 @@ class PluginRegistry:
         if not Tortoise._inited:
             return
 
+        from zxtg.models.plugin_info import PluginInfo
+
         existing = await PluginInfo.get_or_none(module=manifest.key)
         if existing:
             # Structural update only; DO NOT overwrite status, default_status, load_status
@@ -315,6 +316,9 @@ class PluginRegistry:
         """Full registration for a single validated manifest into memory and DB."""
         self._plugins[manifest.key] = manifest
 
+        from zxtg.core.services.config_service import config_service
+        from zxtg.core.services.limit_service import limit_service
+
         # Register configs into ConfigService
         for cfg in manifest.configs:
             config_service.register_spec(manifest.key, cfg)
@@ -349,6 +353,9 @@ class PluginRegistry:
     ) -> None:
         """Synchronous register wrapper (M0 backwards compatibility)."""
         self._plugins[manifest.key] = manifest
+
+        from zxtg.core.services.config_service import config_service
+        from zxtg.core.services.limit_service import limit_service
 
         for cfg in manifest.configs:
             config_service.register_spec(manifest.key, cfg)

@@ -127,14 +127,39 @@ class CallContext:
     async def keyboard(self, buttons: list[list[Any]]) -> None:
         raise NotImplementedError("keyboard is not implemented in M0")
 
-    async def gold(self, delta: int, reason: str) -> bool:
-        raise NotImplementedError("gold service is not implemented in M0")
+    async def gold(self, delta: int, reason: str = "") -> bool:
+        from zxtg.core.services.gold_service import gold_service
 
-    async def impression(self, delta: float) -> bool:
-        raise NotImplementedError("impression service is not implemented in M0")
+        success, _ = await gold_service.change_gold(self._user.id, delta, reason=reason)
+        if success:
+            current_gold = await gold_service.get_gold(self._user.id)
+            self._user = UserView(
+                id=self._user.id,
+                level=self._user.level,
+                gold=current_gold,
+                impression=self._user.impression,
+            )
+        return success
+
+    async def impression(self, delta: float, reason: str = "") -> bool:
+        from zxtg.core.services.impression_service import impression_service
+
+        success, _ = await impression_service.change_impression(self._user.id, delta, reason=reason)
+        if success:
+            current_imp = await impression_service.get_impression(self._user.id)
+            self._user = UserView(
+                id=self._user.id,
+                level=self._user.level,
+                gold=self._user.gold,
+                impression=current_imp,
+            )
+        return success
 
     async def db(self) -> Any:
-        raise NotImplementedError("db DAO is not implemented in M0")
+        from zxtg.core.services.dao import get_plugin_dao
+
+        plugin_key = self._plugin.key if self._plugin else ""
+        return get_plugin_dao(plugin_key)
 
     async def mute(self, user_id: str, duration: int) -> bool:
         if self._action_fn:

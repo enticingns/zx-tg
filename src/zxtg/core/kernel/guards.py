@@ -7,13 +7,7 @@ from zxtg.core.event import CommandRef
 from zxtg.core.kernel.commands import command_registry
 from zxtg.core.kernel.enums import PluginType
 from zxtg.core.kernel.registry import registry
-from zxtg.core.services.config_service import config_service
-from zxtg.core.services.limit_service import limit_service
-from zxtg.models.group_console import GroupConsole
-from zxtg.models.logs import UserGoldLog, UserImpressionLog
 from zxtg.models.plugin_info import PluginInfo
-from zxtg.models.switch import GroupPluginSwitch
-from zxtg.models.user_console import UserConsole
 
 logger = logging.getLogger("zxtg.kernel.guards")
 
@@ -30,13 +24,12 @@ class Verdict:
         return self.allowed
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, Verdict):
-            return (
-                self.allowed == other.allowed
-                and self.reason == other.reason
-                and self.tip == other.tip
-            )
-        return False
+        return (
+            isinstance(other, Verdict)
+            and self.allowed == other.allowed
+            and self.reason == other.reason
+            and self.tip == other.tip
+        )
 
     def __repr__(self) -> str:
         if self.allowed:
@@ -52,40 +45,45 @@ def DENY(reason: str = "", tip: str = "") -> Verdict:
 
 
 async def ResolveContext(ctx: CallContext) -> Verdict:
-    """Resolve actor / chat context from database if initialized."""
+    """Resolve actor / chat context from user_service and group_service (FR-SVC-01, FR-SVC-04, FR-AUTH-11)."""
     if not Tortoise._inited:
         return ALLOW
 
-    actor_id = str(ctx.event.actor.id)
-    user_record = await UserConsole.get_or_none(user_id=actor_id)
-    if user_record is None:
-        user_record = await UserConsole.create(
-            user_id=actor_id,
-            username=ctx.event.actor.username,
-            full_name=ctx.event.actor.full_name or "",
-        )
+    from zxtg.core.services.group_service import group_service
+    from zxtg.core.services.permission_service import permission_service
+    from zxtg.core.services.user_service import user_service
 
-    ctx._user = UserView(
-        id=user_record.user_id,
-        level=ctx.event.role.level,
-        gold=user_record.gold,
-        impression=user_record.impression,
+    actor_id = str(ctx.event.actor.id)
+    user_record, _ = await user_service.get_or_create_user(
+        user_id=actor_id,
+        username=ctx.event.actor.username,
+        full_name=ctx.event.actor.full_name or "",
     )
 
+    group_record = None
     if ctx.event.chat and ctx.event.chat.type in ("group", "supergroup"):
         group_id = str(ctx.event.chat.id)
-        group_record = await GroupConsole.get_or_none(group_id=group_id)
-        if group_record is None:
-            group_record = await GroupConsole.create(
-                group_id=group_id,
-                group_name=ctx.event.chat.title or "",
-            )
+        group_record, _ = await group_service.get_or_create_group(
+            chat_id=group_id,
+            title=ctx.event.chat.title or "",
+        )
         ctx._group = GroupView(
             id=group_record.group_id,
             title=group_record.group_name,
             level=group_record.level,
         )
 
+    effective_level = permission_service.get_effective_level(
+        role=ctx.event.role,
+        group=group_record,
+        user_level=user_record.level,
+    )
+    ctx._user = UserView(
+        id=user_record.user_id,
+        level=effective_level,
+        gold=user_record.gold,
+        impression=user_record.impression,
+    )
     return ALLOW
 
 
@@ -105,24 +103,22 @@ async def BuildCommand(ctx: CallContext) -> Verdict:
                 cmd_name = cmd_token[1:] if cmd_token.startswith("/") else cmd_token
                 if "@" in cmd_name:
                     cmd_name = cmd_name.split("@", 1)[0]
-                args = parts[1:]
-                ctx.event.command = CommandRef(name=cmd_name, args=args, raw=raw_text)
+                ctx.event.command = CommandRef(name=cmd_name, args=parts[1:], raw=raw_text)
 
-    # Attach plugin view if command matched a registered plugin
     if ctx.event.command and ctx.plugin is None:
         p = registry.get_plugin(ctx.event.command.name)
         if p:
             ctx._plugin = PluginView(key=p.key, name=p.name)
-
     return ALLOW
 
 
 async def MergeConfig(ctx: CallContext) -> Verdict:
     """Merge 3-tier configurations into effective plugin config dictionary (FR-CFG-01)."""
     if ctx.plugin:
+        from zxtg.core.services.config_service import config_service
+
         group_id = ctx.group.id if ctx.group else None
         effective = config_service.get_plugin_effective_configs(ctx.plugin.key, group_id)
-        # Merge with any existing config pre-populated on the plugin view
         merged = {**effective, **ctx.plugin.config}
         ctx._plugin = PluginView(key=ctx.plugin.key, name=ctx.plugin.name, config=merged)
     return ALLOW
@@ -131,37 +127,50 @@ async def MergeConfig(ctx: CallContext) -> Verdict:
 async def GuardBan(ctx: CallContext) -> Verdict:
     """Check user/chat blacklist and ban status."""
     if Tortoise._inited and ctx.group:
-        group_record = await GroupConsole.get_or_none(group_id=str(ctx.group.id))
+        from zxtg.core.services.group_service import group_service
+
+        group_record = await group_service.get_group(ctx.group.id)
         if group_record and not group_record.status:
             return DENY(reason="群聊已被禁用", tip="请联系机器人管理员")
     return ALLOW
 
 
 async def GuardSwitch(ctx: CallContext) -> Verdict:
-    """Check global and group plugin switches (FR-PLG-08)."""
+    """Check global and group plugin switches (FR-PLG-08, FR-AUTH-08)."""
     if not ctx.plugin:
         return ALLOW
 
     plugin_key = ctx.plugin.key
     manifest = registry.get_plugin(plugin_key)
+    if not manifest:
+        return ALLOW
 
+    # Superuser bypass check (FR-AUTH-08)
+    if ctx.user.level >= 100 and not manifest.limit_superuser:
+        return ALLOW
+
+    is_globally_enabled = True
     if Tortoise._inited:
         info = await PluginInfo.get_or_none(module=plugin_key)
-        if info and not info.status:
-            return DENY(reason="插件已全局关闭", tip=f"发送 /enable {plugin_key} 开启")
+        is_globally_enabled = info.status if info is not None else manifest.default_status
+    else:
+        is_globally_enabled = manifest.default_status
 
-        if ctx.group:
-            sw = await GroupPluginSwitch.get_or_none(group_id=str(ctx.group.id), plugin_key=plugin_key)
-            if sw and not sw.status:
-                return DENY(reason="插件已在群内关闭", tip=f"发送 /enable {plugin_key} 开启")
-    elif manifest and not manifest.default_status:
+    if not is_globally_enabled:
         return DENY(reason="插件已全局关闭", tip=f"发送 /enable {plugin_key} 开启")
+
+    if Tortoise._inited and ctx.group:
+        from zxtg.core.services.group_service import group_service
+
+        sw = await group_service.get_plugin_switch(ctx.group.id, plugin_key)
+        if sw is False:
+            return DENY(reason="插件已在群内关闭", tip=f"发送 /enable {plugin_key} 开启")
 
     return ALLOW
 
 
 async def GuardLevel(ctx: CallContext) -> Verdict:
-    """Check user permission level against manifest requirements."""
+    """Check user permission level against manifest requirements using permission_service (FR-AUTH-11)."""
     if not ctx.plugin:
         return ALLOW
 
@@ -169,24 +178,26 @@ async def GuardLevel(ctx: CallContext) -> Verdict:
     if not manifest:
         return ALLOW
 
-    user_level = ctx.event.role.level
-    if manifest.admin_level is not None and user_level < manifest.admin_level:
-        return DENY(reason="管理员权限不足", tip=f"需要管理权限等级 {manifest.admin_level}")
+    from zxtg.core.services.permission_service import permission_service
 
-    if manifest.plugin_type in (PluginType.ADMIN, PluginType.SUPERUSER):
-        if user_level < manifest.level:
-            return DENY(reason="权限不足", tip=f"需要权限等级 {manifest.level}")
-
+    allowed, reason, tip = permission_service.can_execute_detailed(
+        user=ctx.user, group=ctx.group, manifest=manifest, role=ctx.event.role
+    )
+    if not allowed:
+        return DENY(reason=reason, tip=tip)
     return ALLOW
 
 
 async def GuardCost(ctx: CallContext) -> Verdict:
-    """Check and atomically deduct economy cost (gold / impression)."""
+    """Check economy cost (gold / impression) and register pending deduction (FR-AUTH-09)."""
     if not ctx.plugin:
         return ALLOW
 
     manifest = registry.get_plugin(ctx.plugin.key)
     if not manifest:
+        return ALLOW
+
+    if ctx.user.level >= 100 and not manifest.limit_superuser:
         return ALLOW
 
     if manifest.cost_gold > 0 and ctx.user.gold < manifest.cost_gold:
@@ -198,31 +209,9 @@ async def GuardCost(ctx: CallContext) -> Verdict:
             tip=f"本次调用需要 {manifest.impression:.1f} 好感度，当前拥有 {ctx.user.impression:.1f}",
         )
 
-    # Atomic deduction in database
-    if Tortoise._inited and (manifest.cost_gold > 0 or manifest.impression > 0.0):
-        user_record = await UserConsole.get_or_none(user_id=str(ctx.user.id))
-        if user_record:
-            if manifest.cost_gold > 0:
-                user_record.gold -= manifest.cost_gold
-                await UserGoldLog.create(
-                    user_id=str(ctx.user.id),
-                    amount=-manifest.cost_gold,
-                    reason=f"cost_{manifest.key}",
-                )
-            if manifest.impression > 0.0:
-                user_record.impression -= manifest.impression
-                await UserImpressionLog.create(
-                    user_id=str(ctx.user.id),
-                    amount=-manifest.impression,
-                    reason=f"cost_{manifest.key}",
-                )
-            await user_record.save()
-            ctx._user = UserView(
-                id=ctx.user.id,
-                level=ctx.user.level,
-                gold=user_record.gold,
-                impression=user_record.impression,
-            )
+    # Attach pending deduction to context so Dispatch only deducts IF handler succeeds (FR-AUTH-09)
+    if manifest.cost_gold > 0 or manifest.impression > 0.0:
+        ctx._pending_cost = (manifest.cost_gold, manifest.impression, manifest.key)
 
     return ALLOW
 
@@ -238,7 +227,9 @@ async def GuardLimit(ctx: CallContext) -> Verdict:
 
     is_group = bool(ctx.group or (ctx.event.chat and ctx.event.chat.type in ("group", "supergroup")))
     group_id = ctx.group.id if ctx.group else (ctx.event.chat.id if ctx.event.chat else None)
-    is_superuser = ctx.event.role.level >= 100
+    is_superuser = ctx.user.level >= 100 or ctx.event.role.level >= 100
+
+    from zxtg.core.services.limit_service import limit_service
 
     allowed, reason = limit_service.check_all_and_record(
         manifest=manifest,
@@ -247,15 +238,13 @@ async def GuardLimit(ctx: CallContext) -> Verdict:
         is_group=is_group,
         is_superuser=is_superuser,
     )
-
     if not allowed:
         return DENY(reason=reason, tip="请遵守插件频率限制")
-
     return ALLOW
 
 
 async def Dispatch(ctx: CallContext) -> Verdict:
-    """Dispatch command to registered handler."""
+    """Dispatch command to registered handler and execute cost deduction on success (FR-AUTH-09)."""
     cmd = ctx.event.command
     if not cmd:
         return DENY(reason="No command specified", tip="Send /ping to test")
@@ -264,5 +253,38 @@ async def Dispatch(ctx: CallContext) -> Verdict:
     if not handler:
         return DENY(reason=f"Unknown command: {cmd.name}", tip="Available command: /ping")
 
+    # Execute handler
     await handler(ctx)
+
+    # If handler succeeds without exception, apply pending cost deduction (FR-AUTH-09)
+    pending_cost = getattr(ctx, "_pending_cost", None)
+    if pending_cost:
+        if not Tortoise._inited:
+            raise RuntimeError("扣费需要已初始化的数据库")
+        cost_gold, cost_imp, plugin_key = pending_cost
+        from zxtg.core.services.gold_service import gold_service
+        from zxtg.core.services.impression_service import impression_service
+
+        if cost_gold > 0:
+            ok, msg = await gold_service.change_gold(ctx.user.id, -cost_gold, f"cost_{plugin_key}")
+            if not ok:
+                return DENY(reason=msg, tip="金币扣除失败")
+
+        if cost_imp > 0.0:
+            ok, msg = await impression_service.change_impression(ctx.user.id, -cost_imp, f"cost_{plugin_key}")
+            if not ok:
+                return DENY(reason=msg, tip="好感度扣除失败")
+
+        current_gold = await gold_service.get_gold(ctx.user.id)
+        current_imp = await impression_service.get_impression(ctx.user.id)
+        ctx._user = UserView(
+            id=ctx.user.id, level=ctx.user.level, gold=current_gold, impression=current_imp
+        )
+
+    if ctx.plugin:
+        from zxtg.core.services.statistics_service import statistics_service
+
+        group_id = ctx.group.id if ctx.group else None
+        statistics_service.record_call(ctx.plugin.key, ctx.user.id, group_id)
+
     return ALLOW

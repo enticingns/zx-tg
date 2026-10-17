@@ -142,3 +142,24 @@ def test_httpx_restricted_to_platform_layer():
             assert imp != "httpx" and not imp.startswith("httpx."), (
                 f"httpx import VIOLATION in {py_file}: httpx is only allowed in platform layer"
             )
+
+
+def test_b5_boundary_plugins_no_raw_sql_drivers():
+    """FR-DATA-04: plugins/ must NOT import raw database drivers directly."""
+    forbidden_prefixes = (
+        "sqlite3",
+        "aiosqlite",
+        "tortoise.transactions",
+        "tortoise.backends",
+        "tortoise.connection",
+    )
+
+    plugins_dir = PROJECT_ROOT / "plugins"
+    for py_file in plugins_dir.rglob("*.py"):
+        imports = get_all_imports(py_file)
+        for imp in imports:
+            for forbidden in forbidden_prefixes:
+                assert not (imp == forbidden or imp.startswith(f"{forbidden}.")), (
+                    f"FR-DATA-04 VIOLATION in {py_file}: raw SQL driver import '{imp}'"
+                )
+

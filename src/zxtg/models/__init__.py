@@ -1,5 +1,6 @@
 from zxtg.models.group_console import GroupConsole
 from zxtg.models.join_request import FGRequest, JoinRequest
+from zxtg.models.item import UserItem
 from zxtg.models.logs import UserGoldLog, UserImpressionLog
 from zxtg.models.migration_record import MigrationRecord
 from zxtg.models.plugin_info import PluginInfo
@@ -22,4 +23,5 @@ __all__ = [
     "UserConsole",
     "UserGoldLog",
     "UserImpressionLog",
+    "UserItem",
 ]
