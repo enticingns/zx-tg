@@ -25,6 +25,18 @@ dev = [
     "pytest",
     "pytest-asyncio",
 ]
+render = [
+    "pillow",
+]
+html = [
+    "jinja2",
+    "playwright",
+]
+webui = [
+    "fastapi",
+    "uvicorn",
+    "pyjwt",
+]
 
 [project.scripts]
 zxtg = "zxtg.__main__:main"

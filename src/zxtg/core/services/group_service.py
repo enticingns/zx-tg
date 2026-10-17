@@ -148,6 +148,22 @@ class GroupService:
         groups = await GroupConsole.filter(status=True).all()
         return [g.group_id for g in groups]
 
+    async def list_groups(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Fetch list of groups for management console (FR-WEB-04)."""
+        if not Tortoise._inited:
+            return []
+        groups = await GroupConsole.all().limit(limit)
+        return [
+            {
+                "group_id": g.group_id,
+                "group_name": g.group_name,
+                "level": g.level,
+                "status": g.status,
+                "member_count": g.member_count,
+            }
+            for g in groups
+        ]
+
 
 group_service = GroupService()
 

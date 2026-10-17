@@ -16,6 +16,7 @@ from zxtg.core.kernel.enums import PluginType
 from zxtg.core.kernel.guards import ALLOW, DENY
 from zxtg.core.kernel.pipeline import run_pipeline
 from zxtg.core.kernel.registry import registry
+from zxtg.core.services.config_service import config_service
 from zxtg.core.services.db import close_db, init_db
 from zxtg.core.services.gold_service import gold_service
 from zxtg.core.services.group_service import group_service
@@ -33,6 +34,7 @@ async def setup_test_db():
     await init_db(db_path=":memory:", generate_schemas=True)
     registry.clear()
     await registry.startup()
+    config_service.set_global("RENDER_ENGINE", "text")
     yield
     await close_db()
 

@@ -81,17 +81,26 @@ async def handle_sign_in(ctx: CallContext) -> None:
     current_gold = await gold_service.get_gold(ctx.user.id)
     current_imp = await impression_service.get_impression(ctx.user.id)
 
-    # 4. Pure text Markdown output (M4 without image rendering)
-    msg = (
-        f"🎉 **签到成功！**\n"
-        f"💰 获得金币：+{gold_reward}（当前余额：{current_gold}）\n"
-        f"❤️ 获得好感度：+{imp_reward:.1f}（当前好感度：{current_imp:.1f}）"
+    # 4. Render output via ctx.render (FR-RND-01)
+    res = await ctx.render(
+        "sign_in",
+        {
+            "gold_reward": gold_reward,
+            "current_gold": current_gold,
+            "imp_reward": imp_reward,
+            "current_imp": current_imp,
+            "user_id": ctx.user.id,
+        },
     )
-    await ctx.reply(msg)
+    if res.is_image:
+        await ctx.reply(res.content)
+    else:
+        msg = f"💡 {res.notice}\n\n{res.content}" if res.notice else str(res.content)
+        await ctx.reply(msg)
 
 
 async def handle_sign_rank(ctx: CallContext) -> None:
-    """Handle impression leaderboard (group/global) (FR-BIP-02)."""
+    """Handle impression leaderboard (group/global) (FR-BIP-02, FR-RND-01)."""
     dao = await ctx.db()
     args = ctx.event.command.args if ctx.event.command else []
     scope_arg = args[0] if args else ""
@@ -111,11 +120,18 @@ async def handle_sign_rank(ctx: CallContext) -> None:
         await ctx.reply("暂无好感度排行数据。")
         return
 
-    lines = [f"🏆 **{title}**\n"]
-    for idx, item in enumerate(ranking, start=1):
-        lines.append(f"{idx}. {item['name']} - {item['impression']:.1f}")
-
-    await ctx.reply("\n".join(lines))
+    res = await ctx.render(
+        "sign_rank",
+        {
+            "title": title,
+            "ranking": ranking,
+        },
+    )
+    if res.is_image:
+        await ctx.reply(res.content)
+    else:
+        msg = f"💡 {res.notice}\n\n{res.content}" if res.notice else str(res.content)
+        await ctx.reply(msg)
 
 
 async def setup(ctx: Any = None) -> None:

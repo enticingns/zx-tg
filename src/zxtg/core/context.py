@@ -112,8 +112,22 @@ class CallContext:
         self._replies.append(sent)
         return sent
 
+    async def render(self, template: str, data: dict[str, Any]) -> Any:
+        """Unified rendering interface for plugins (FR-RND-01)."""
+        from zxtg.core.render.registry import render_with_fallback
+
+        engine = await self.config("RENDER_ENGINE") or "pillow"
+        return await render_with_fallback(template, data, engine=engine)
+
     async def reply_image(self, template: str, data: dict[str, Any]) -> SentMessage:
-        raise NotImplementedError("reply_image is not implemented in M0")
+        """Render and reply with image or degraded text (FR-RND-01, FR-RND-05)."""
+        res = await self.render(template, data)
+        if res.is_image:
+            return await self.reply(res.content)
+        text = str(res.content)
+        if res.notice:
+            text = f"💡 {res.notice}\n\n{text}"
+        return await self.reply(text)
 
     async def edit(self, msg: SentMessage, content: Any) -> None:
         raise NotImplementedError("edit is not implemented in M0")
